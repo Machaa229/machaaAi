@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Giriş & Kayıt (Firebase Auth)</title>
+  <style>
+    :root{
+      --bg:#0f0f10; --card:#1f1f22; --accent1:#ff6600; --accent2:#ff3300; --text:#f5f5f5;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(180deg,#070707,var(--bg));
+      color:var(--text);
+      font-family:Inter, system-ui, Arial, sans-serif;
+      padding:24px;
+    }
+    .card{
+      width:360px;
+      max-width:100%;
+      background:var(--card);
+      padding:22px;
+      border-radius:12px;
+      box-shadow:0 8px 30px rgba(0,0,0,0.6);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 12px;
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--accent1);
+    }
+    h1{margin:0 0 12px 0;font-size:20px;text-align:center}
+    label{display:block;margin-top:10px;font-size:13px;color:#ddd}
+    input[type="email"], input[type="password"]{
+      width:100%;
+      padding:10px 12px;
+      margin-top:6px;
+      border-radius:8px;
+      border:1px solid #333;
+      background:#0b0b0b;
+      color:var(--text);
+    }
+    .row{display:flex;gap:8px;margin-top:14px}
+    button{
+      flex:1;
+      padding:10px 12px;
+      border-radius:8px;
+      border:none;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .btn-primary{
+      background:linear-gradient(90deg,var(--accent1),var(--accent2));
+      color:#fff;
+    }
+    .btn-outline{
+      background:transparent;
+      color:var(--text);
+      border:1px solid #333;
+    }
+    .muted{font-size:13px;color:#bbb;margin-top:10px;text-align:center}
+    .error{margin-top:10px;color:#ff8b8b;font-size:13px}
+    .success{margin-top:10px;color:#9be29b;font-size:13px}
+    .small{font-size:13px;color:#bdbdbd;margin-top:8px;text-align:center}
+    .forgot{font-size:13px;color:#ff6600;text-align:right;margin-top:6px;cursor:pointer;text-decoration:underline;}
+    footer{margin-top:14px;text-align:center;font-size:12px;color:#999}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Machaa Ai</div>
+    <h1>Hesap Oluştur / Giriş Yap</h1>
+
+    <label for="email">E-posta</label>
+    <input id="email" type="email" placeholder="email@ornek.com" autocomplete="email">
+
+    <label for="password">Şifre</label>
+    <input id="password" type="password" placeholder="Şifreniz (min 6 karakter)" autocomplete="current-password">
+
+    <div class="forgot" id="forgotBtn">Şifremi Unuttum</div>
+
+    <div class="row" style="margin-top:16px;">
+      <button id="signupBtn" class="btn-primary">Kayıt Ol</button>
+      <button id="signinBtn" class="btn-outline">Giriş Yap</button>
+    </div>
+
+    <div id="message" class="error" style="display:none;"></div>
+    <div id="info" class="success" style="display:none;"></div>
+
+    <div class="small">
+      Kayıt olunca e-posta ve şifren Authentication bölümüne eklenir. (Firebase REST API)
+    </div>
+
+    <footer>
+      Eğer zaten giriş yaptıysanız <strong>index2.html</strong> sayfasına yönlendirileceksiniz.
+    </footer>
+  </div>
+
+  <script>
+    const FIREBASE_API_KEY = "AIzaSyDIMp5cJ81ycmvuscBz07IQLowBv7fWO8U";
+
+    const emailEl = document.getElementById('email');
+    const passEl = document.getElementById('password');
+    const signupBtn = document.getElementById('signupBtn');
+    const signinBtn = document.getElementById('signinBtn');
+    const forgotBtn = document.getElementById('forgotBtn');
+    const messageEl = document.getElementById('message');
+    const infoEl = document.getElementById('info');
+
+    function showMessage(text){
+      infoEl.style.display = 'none';
+      messageEl.style.display = 'block';
+      messageEl.textContent = text;
+    }
+    function showInfo(text){
+      messageEl.style.display = 'none';
+      infoEl.style.display = 'block';
+      infoEl.textContent = text;
+    }
+    function clearMessages(){
+      messageEl.style.display = 'none';
+      infoEl.style.display = 'none';
+      messageEl.textContent = '';
+      infoEl.textContent = '';
+    }
+
+    function validate(email, password){
+      if(!email) { showMessage("E-posta giriniz."); return false; }
+      if(password !== undefined && password.length < 6){ showMessage("Şifre en az 6 karakter olmalı."); return false; }
+      return true;
+    }
+
+    const SIGNUP_URL = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`;
+    const SIGNIN_URL = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
+    const RESET_URL = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`;
+
+    async function signUp(){
+      clearMessages();
+      const email = emailEl.value.trim();
+      const password = passEl.value;
+      if(!validate(email,password)) return;
+
+      signupBtn.disabled = true;
+      signinBtn.disabled = true;
+      showInfo("Kayıt yapılıyor...");
+
+      try{
+        const res = await fetch(SIGNUP_URL,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({email,password,returnSecureToken:true})
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error.message);
+
+        localStorage.setItem('activeUser', data.email);
+        localStorage.setItem('idToken', data.idToken);
+        showInfo("Kayıt başarılı! Yönlendiriliyorsunuz...");
+        setTimeout(()=>window.location.href="index2.html",800);
+      }catch(err){
+        showMessage("Hata: "+err.message);
+      }finally{
+        signupBtn.disabled=false;
+        signinBtn.disabled=false;
+      }
+    }
+
+    async function signIn(){
+      clearMessages();
+      const email = emailEl.value.trim();
+      const password = passEl.value;
+      if(!validate(email,password)) return;
+
+      signupBtn.disabled = true;
+      signinBtn.disabled = true;
+      showInfo("Giriş yapılıyor...");
+
+      try{
+        const res = await fetch(SIGNIN_URL,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({email,password,returnSecureToken:true})
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error.message);
+
+        localStorage.setItem('activeUser', data.email);
+        localStorage.setItem('idToken', data.idToken);
+        showInfo("Giriş başarılı! Yönlendiriliyorsunuz...");
+        setTimeout(()=>window.location.href="index2.html",600);
+      }catch(err){
+        showMessage("Hata: "+err.message);
+      }finally{
+        signupBtn.disabled=false;
+        signinBtn.disabled=false;
+      }
+    }
+
+    async function resetPassword(){
+      clearMessages();
+      const email = emailEl.value.trim();
+      if(!email) { showMessage("E-posta giriniz."); return; }
+
+      showInfo("Şifre sıfırlama e-postası gönderiliyor...");
+      try{
+        const res = await fetch(RESET_URL,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({requestType:"PASSWORD_RESET",email})
+        });
+        const data = await res.json();
+        if(data.error) throw new Error(data.error.message);
+
+        showInfo("Şifre sıfırlama e-postası gönderildi!");
+      }catch(err){
+        showMessage("Hata: "+err.message);
+      }
+    }
+
+    signupBtn.addEventListener('click', signUp);
+    signinBtn.addEventListener('click', signIn);
+    forgotBtn.addEventListener('click', resetPassword);
+
+    passEl.addEventListener('keyup', (e)=>{
+      if(e.key === 'Enter') signIn();
+    });
+
+  </script>
+</body>
+</html>
